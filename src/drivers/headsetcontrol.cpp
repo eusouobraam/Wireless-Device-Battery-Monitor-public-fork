@@ -1,6 +1,5 @@
 // Optional bridge to HeadsetControl (github.com/Sapd/HeadsetControl), which supports many more
-// headsets than the built-in drivers. If headsetcontrol.exe sits next to WirelessBattery.exe or is
-// on PATH, it is run with `-o json` and any headset not already handled here is added.
+// headsets than the built-in drivers. Only the companion beside WirelessBattery.exe is used.
 #include "drivers.h"
 
 #include <cstdlib>
@@ -108,19 +107,20 @@ std::wstring Widen(const std::string& s) {
 }
 
 std::wstring FindExe() {
-    wchar_t self[MAX_PATH];
-    GetModuleFileNameW(nullptr, self, MAX_PATH);
-    std::wstring dir = self;
+    wchar_t self[32768];
+    const DWORD length = GetModuleFileNameW(nullptr, self, ARRAYSIZE(self));
+    if (!length || length == ARRAYSIZE(self)) return L"";
+    std::wstring dir(self, length);
     dir = dir.substr(0, dir.find_last_of(L"\\/") + 1);
     std::wstring local = dir + L"headsetcontrol.exe";
-    if (GetFileAttributesW(local.c_str()) != INVALID_FILE_ATTRIBUTES) return local;
-    wchar_t found[MAX_PATH];
-    if (SearchPathW(nullptr, L"headsetcontrol.exe", nullptr, MAX_PATH, found, nullptr)) return found;
+    const DWORD attributes = GetFileAttributesW(local.c_str());
+    if (attributes != INVALID_FILE_ATTRIBUTES && !(attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)))
+        return local;
     return L"";
 }
 
 // Runs the command line and returns its stdout (empty on failure or after `timeoutMs`).
-std::string Run(std::wstring cmd, int timeoutMs) {
+std::string Run(const std::wstring& exe, std::wstring cmd, int timeoutMs) {
     SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
     HANDLE rd, wr;
     if (!CreatePipe(&rd, &wr, &sa, 0)) return "";
@@ -131,25 +131,25 @@ std::string Run(std::wstring cmd, int timeoutMs) {
     si.hStdError = wr;
     si.hStdInput = nullptr;
     PROCESS_INFORMATION pi{};
-    BOOL ok = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    BOOL ok = CreateProcessW(exe.c_str(), cmd.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
     CloseHandle(wr);
     std::string out;
     if (ok) {
         ULONGLONG end = GetTickCount64() + timeoutMs;
         char buf[4096];
-        for (;;) {
+        while (GetTickCount64() < end) {
             DWORD avail = 0;
             if (!PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;  // pipe closed: process done
             if (avail) {
                 DWORD n = 0;
                 if (!ReadFile(rd, buf, sizeof(buf), &n, nullptr) || !n) break;
                 out.append(buf, n);
-                if (out.size() > (1 << 20)) break;
+                if (out.size() > (1 << 20)) { TerminateProcess(pi.hProcess, 1); out.clear(); break; }
                 continue;
             }
-            if ((LONGLONG)end - (LONGLONG)GetTickCount64() <= 0) { TerminateProcess(pi.hProcess, 1); out.clear(); break; }
             Sleep(20);
         }
+        if (GetTickCount64() >= end) { TerminateProcess(pi.hProcess, 1); out.clear(); }
         CloseHandle(pi.hThread);
         CloseHandle(pi.hProcess);
     }
@@ -202,9 +202,7 @@ std::vector<HscDevice> g_devices;
 ULONGLONG g_updated = 0;
 LONG g_running = 0;
 
-std::wstring Command() {
-    static std::wstring exe = FindExe();
-    if (exe.empty()) return L"";
+std::wstring Command(const std::wstring& exe) {
     std::wstring cmd = L"\"" + exe + L"\" -b -o json --timeout 1500";
     wchar_t test[8];
     if (GetEnvironmentVariableW(L"WB_HSC_TEST_DEVICE", test, 8)) cmd += L" --test-device";  // for development
@@ -212,8 +210,8 @@ std::wstring Command() {
 }
 
 void Refresh() {
-    std::wstring cmd = Command();
-    std::vector<HscDevice> found = cmd.empty() ? std::vector<HscDevice>{} : Parse(Run(cmd, 30000));
+    const std::wstring exe = FindExe();
+    std::vector<HscDevice> found = exe.empty() ? std::vector<HscDevice>{} : Parse(Run(exe, Command(exe), 30000));
     AcquireSRWLockExclusive(&g_lock);
     g_devices = found;
     g_updated = GetTickCount64();
@@ -229,7 +227,7 @@ DWORD WINAPI RefreshThread(LPVOID) {
 }  // namespace
 
 void PollHeadsetControl(PollContext& ctx) {
-    if (Command().empty()) return;
+    if (FindExe().empty()) return;
     ULONGLONG now = GetTickCount64();
     if (g_updated == 0) {
         Refresh();  // first poll: wait for it, so the first display (and --list) is complete

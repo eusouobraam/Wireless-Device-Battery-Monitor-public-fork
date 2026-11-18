@@ -331,7 +331,9 @@ int Post(const std::string& body, std::string& reply) {
         if (WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &code, &len,
                                 WINHTTP_NO_HEADER_INDEX))
             status = (int)code;
-        for (DWORD avail = 0; WinHttpQueryDataAvailable(r, &avail) && avail && reply.size() < 16384;) {
+        constexpr size_t maxReply = 16384;
+        for (DWORD avail = 0; reply.size() < maxReply && WinHttpQueryDataAvailable(r, &avail) && avail;) {
+            if (avail > maxReply - reply.size()) avail = static_cast<DWORD>(maxReply - reply.size());
             std::string chunk(avail, 0);
             DWORD got = 0;
             if (!WinHttpReadData(r, chunk.data(), avail, &got) || !got) break;
@@ -581,7 +583,7 @@ bool LightTheme(const wchar_t* value) {
 void ApplyTheme(HWND h) {
     bool lightApps = LightTheme(L"AppsUseLightTheme"), lightTaskbar = LightTheme(L"SystemUsesLightTheme");
     using SetAttrFn = HRESULT(WINAPI*)(HWND, DWORD, LPCVOID, DWORD);
-    if (HMODULE dwm = LoadLibraryW(L"dwmapi.dll")) {
+    if (HMODULE dwm = LoadLibraryExW(L"dwmapi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32)) {
         if (auto fn = (SetAttrFn)GetProcAddress(dwm, "DwmSetWindowAttribute")) {
             BOOL dark = !lightApps;
             fn(h, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
@@ -700,7 +702,7 @@ void Show(HINSTANCE inst, HWND owner) {
     HMONITOR mon = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
     UINT dpiX = 96, dpiY = 96;
     using GetDpiForMonitorFn = HRESULT(WINAPI*)(HMONITOR, int, UINT*, UINT*);
-    if (HMODULE shcore = LoadLibraryW(L"shcore.dll")) {
+    if (HMODULE shcore = LoadLibraryExW(L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32)) {
         if (auto fn = (GetDpiForMonitorFn)GetProcAddress(shcore, "GetDpiForMonitor")) fn(mon, 0, &dpiX, &dpiY);
     }
     DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;

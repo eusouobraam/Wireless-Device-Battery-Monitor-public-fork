@@ -213,7 +213,7 @@ HeadsetControl release and verifies its checksum. GitHub Actions does all of thi
 pushing a tag like `v1.0.0` publishes a release with the installer, the portable zip and the
 HeadsetControl source (as its GPL license requires).
 
-`WirelessBattery.exe` on its own also works. Without `headsetcontrol.exe` next to it (or on `PATH`) you
+`WirelessBattery.exe` on its own also works. Without `headsetcontrol.exe` next to it you
 just lose the extra headsets.
 
 ## Linux (experimental)

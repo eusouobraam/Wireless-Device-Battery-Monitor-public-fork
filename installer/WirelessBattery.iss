@@ -33,7 +33,7 @@ WizardStyle=modern
 CloseApplications=no
 
 [Tasks]
-Name: "autostart"; Description: "Start Wireless Battery when I sign in to Windows"
+Name: "autostart"; Description: "Start Wireless Battery when I sign in to Windows"; Flags: unchecked
 
 [Files]
 Source: "{#Root}\WirelessBattery.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -45,7 +45,7 @@ Source: "{#Root}\installer\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ig
 Name: "{autoprograms}\Wireless Battery"; Filename: "{app}\WirelessBattery.exe"
 
 [Run]
-Filename: "{app}\WirelessBattery.exe"; Description: "Start Wireless Battery now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\WirelessBattery.exe"; Description: "Start Wireless Battery now"; Flags: nowait postinstall unchecked skipifsilent
 Filename: "https://ko-fi.com/krisgfx"; Description: "Enjoying Wireless Battery? Support it on Ko-fi"; Flags: shellexec postinstall unchecked skipifsilent nowait runasoriginaluser
 
 [UninstallRun]
