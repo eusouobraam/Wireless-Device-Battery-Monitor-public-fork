@@ -41,10 +41,20 @@ A inspeção dos cabeçalhos e da tabela de importação com objdump encontrou
 `DYNAMIC_BASE`, `NX_COMPAT` e as bibliotecas WinHTTP, Winsock, HID e SetupAPI.
 O executável e o auxiliar do ZIP estavam sem assinatura Authenticode. O hash
 do auxiliar coincidia com o valor fixado no script de empacotamento.
-O Microsoft Defender concluiu uma varredura local da pasta do ZIP extraído sem
-registrar detecções durante a varredura.
+O inventário estático do ZIP pelo REA não encontrou contradições de integridade
+(evidência `ev_a4727bb488ec60e6922a9c20b15c736f23ae915b7fdf0c88c1ab5045350fa5a5`).
+O instalador oficial também estava sem assinatura Authenticode. O Microsoft
+Defender concluiu varreduras locais do ZIP extraído e do instalador oficial
+sem registrar detecções.
+
+O executável reconstruído a partir do commit `48bdc51` compilou com
+MinGW-w64, e todos os testes do alvo `make test` foram aprovados no Windows.
+O SHA-256 do executável reconstruído é
+`31cbd2872f279cc9ac40275dac251cdae35d015b50fccac826393f86dd93ccc3`.
+A varredura desse arquivo no Defender foi concluída sem registrar detecções.
 
 O provedor de descompilação do REA estava indisponível. A revisão foi estática.
-Ela não inclui análise dinâmica em VM, auditoria completa das dependências de
-terceiros ou testes com hardware real. Os resultados não certificam ausência
+Ela não inclui análise dinâmica em VM, reconstrução do pacote Inno Setup,
+auditoria completa das dependências de terceiros ou testes com hardware
+real. Os resultados não certificam ausência
 de malware, ransomware ou vulnerabilidades.
